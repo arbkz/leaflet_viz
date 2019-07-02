@@ -1,0 +1,92 @@
+---
+title: "Data Visualisation with leaflet and plotly"
+author: "christopher barkhuizen"
+date: "02/07/2019"
+output: rmdformats::readthedown
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+
+```
+
+## The Data
+
+This analysis uses the City of Cape Town street people dataset. 
+The data can be found [here](https://web1.capetown.gov.za/web1/OpenDataPortal/DatasetDetail?DatasetName=Street%20people)
+
+The dataset is based on interviews conducted with homeless people and captures various demographics relating to their age, race, occupation etc 
+
+
+```{r read_data, cache = TRUE}
+library(xlsx)
+library(dplyr)
+library(leaflet)
+library(plotly)
+
+streets <- read.xlsx("./Street people head count 19.8.2015.xlsx", 2)
+streets_desc <- read.xlsx("./Street people head count 19.8.2015.xlsx",3)
+```
+
+## EDA   
+
+```{r eda, cache = TRUE}
+
+str(streets_desc)
+
+p1 <- plot_ly(x = streets_desc$Race, type = "histogram")
+p2 <- plot_ly(x = streets_desc$Age, type = "histogram")
+p3 <- plot_ly(x = streets_desc$Gender, type = "histogram")
+subplot(p1, p2, p3) %>% layout(showlegend = FALSE)
+```
+
+
+## Street People by Location
+
+First we will show the location of all the people encountered in the survey.
+The people are grouped into clusters to give a high level view which can then be drilled down. 
+A rectangle is drawn to show the geographic area covered by the survey. 
+
+```{r analyse_and_plot, cache = TRUE}
+
+streets_count <- streets %>% mutate(locn_x_fact = as.factor(streets$X...............GPS.Co.ordinate), locn_y_fact = as.factor(streets$Y..................GPS.Co.ordinate)) %>%  
+    group_by(locn_x_fact, locn_y_fact) %>% 
+    summarise(count = n()) %>% 
+    mutate(lat = as.numeric(as.character(locn_y_fact)), lng = as.numeric(as.character(locn_x_fact)))
+
+# Find the limits of the region for the data analysis 
+
+max_x <- max(streets$X...............GPS.Co.ordinate)
+min_x <- min(streets$X...............GPS.Co.ordinate)
+max_y <- max(streets$Y..................GPS.Co.ordinate)
+min_y <- min(streets$Y..................GPS.Co.ordinate)
+
+streets_count %>% leaflet() %>% addTiles() %>% addMarkers(clusterOptions = markerClusterOptions()) %>% addRectangles(color = "light blue", lat1 = min_y, lat2 = max_y, lng1 = min_x, lng2 = max_x)
+
+
+
+```
+
+## Street People by Gender   
+
+The next map shows the gender and number of street people per location with the group size indicated by circle radius.
+Two different colours are used to distinguish between male and females.
+
+``` {r location_by_gender, cache = TRUE}
+
+streets_gender <- streets %>% mutate(locn_x_fact = as.factor(streets$X...............GPS.Co.ordinate), locn_y_fact = as.factor(streets$Y..................GPS.Co.ordinate)) %>%  
+    group_by(locn_x_fact, locn_y_fact, Gender) %>% 
+    summarise(count = n()) %>% 
+    mutate(lat = as.numeric(as.character(locn_y_fact)), lng = as.numeric(as.character(locn_x_fact)))
+
+
+colors <- c("red","blue")
+get_colors <- function(i) {return(colors[i])}
+sc <- sapply(streets_gender$Gender, get_colors)
+
+streets_gender %>% leaflet() %>% addTiles() %>% addCircles(color = sc, weight = 2, radius = (streets_gender$count * 10)) %>% addLegend(labels = c("Male", "Female"), colors = c("red","blue"))
+
+```
+
